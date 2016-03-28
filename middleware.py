@@ -12,14 +12,17 @@ class RebrandMiddleware(object):
     @staticmethod
     def _should_redirect(request):
         host = request.get_host()
-        return host == settings.SESSION_EXCHANGE_ORIGIN_DOMAIN \
+        return (settings.REBRANDED or request.user.is_staff()) \
+               and host == settings.SESSION_EXCHANGE_ORIGIN_DOMAIN \
                and 'local' not in host \
                and not any([p in request.path for p in NON_REDIRECTABLE])
 
     @staticmethod
     def process_request(request):
         if RebrandMiddleware._should_redirect(request):
-            url = '%s%s%s' % (settings.SESSION_EXCHANGE_DESTINATION_URL, request.path, build_qs_string(request))
+            url = '%s%s%s' % (settings.SESSION_EXCHANGE_DESTINATION_URL,
+                              request.path,
+                              build_qs_string(request))
             url = url_add_params(url, {'epredirect': '1'})
             return http.HttpResponsePermanentRedirect(url)
         return None
