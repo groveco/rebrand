@@ -18,7 +18,7 @@ class RebrandMiddleware(object):
 
     @staticmethod
     def process_request(request):
-        if request.get_host() == settings.SESSION_EXCHANGE_ORIGIN_DOMAIN and not any([p in request.path for p in NON_REDIRECTABLE]):
+        if RebrandMiddleware._should_redirect(request):
             url = '%s%s%s' % (settings.SESSION_EXCHANGE_DESTINATION_URL, request.path, build_qs_string(request))
             url = url_add_params(url, {'epredirect': '1'})
             return http.HttpResponsePermanentRedirect(url)
