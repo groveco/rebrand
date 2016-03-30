@@ -1,11 +1,39 @@
 from django import http
 from django.conf import settings
 import urllib
-from .utils import build_qs_string, url_add_params
+import urlparse
 
-########
 
-NON_REDIRECTABLE = ['/session-exchange', '/api/o/']
+IGNORE_AGENTS = [
+    'AdsBot-Google',
+    'Mediapartners-Google',
+    'Googlebot',
+    'Prerender'
+]
+IGNORE_PATHS = [
+    '/session-exchange/',
+    '/api/',
+    '/terms/',
+    '/robots.txt',
+    '/sitemap.xml',
+]
+IGNORE_REBRAND_PATHS = [
+    '/session-exchange/',
+    '/api/o/'  # oauth
+]
+
+
+def build_url_params(params):
+    return '?' + '&'.join(['%s=%s' % (k, v) for k, v in params.iteritems()])
+
+
+def url_add_params(url, params):
+    url_parts = list(urlparse.urlparse(url))
+    query = dict(urlparse.parse_qsl(url_parts[4]))
+    query.update(params)
+    url_parts[4] = urllib.urlencode(query)
+    return urlparse.urlunparse(url_parts)
+
 
 class RebrandMiddleware(object):
 
@@ -13,9 +41,9 @@ class RebrandMiddleware(object):
     def _should_redirect(request):
         host = request.get_host()
         return (settings.REBRANDED or request.user.is_staff()) \
-               and host == settings.SESSION_EXCHANGE_ORIGIN_DOMAIN \
-               and 'local' not in host \
-               and not any([p in request.path for p in NON_REDIRECTABLE])
+            and host == settings.SESSION_EXCHANGE_ORIGIN_DOMAIN \
+            and 'local' not in host \
+            and not any([p in request.path for p in IGNORE_REBRAND_PATHS])
 
     @staticmethod
     def process_request(request):
@@ -27,28 +55,13 @@ class RebrandMiddleware(object):
             return http.HttpResponsePermanentRedirect(url)
         return None
 
-###########
-
 
 class SessionExchangeMiddleware(object):
+
     @staticmethod
     def process_request(request):
-        ignore_agents = [
-            'AdsBot-Google',
-            'Mediapartners-Google',
-            'Googlebot',
-            'Prerender'
-        ]
-        ignore_paths = [
-            '/session-exchange/',
-            '/api/',
-            '/terms/',
-            '/robots.txt',
-            '/sitemap.xml',
-        ]
-
-        is_whitelisted_agent = 'HTTP_USER_AGENT' in request.META and any(x in request.META['HTTP_USER_AGENT'] for x in ignore_agents)
-        is_whitelisted_path = any(x in request.path for x in ignore_paths)
+        is_whitelisted_agent = 'HTTP_USER_AGENT' in request.META and any(x in request.META['HTTP_USER_AGENT'] for x in IGNORE_AGENTS)
+        is_whitelisted_path = any(x in request.path for x in IGNORE_PATHS)
 
         if not is_whitelisted_path \
            and not is_whitelisted_agent \
